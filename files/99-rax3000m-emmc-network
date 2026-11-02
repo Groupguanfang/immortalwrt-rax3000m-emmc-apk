@@ -1,0 +1,12 @@
+#!/bin/sh
+
+[ "$(board_name)" = "cmcc,rax3000m-emmc" ] || exit 0
+
+uci -q set network.lan.ipaddr='10.0.0.1'
+uci -q set network.lan.netmask='255.255.255.0'
+uci -q set dhcp.lan.start='100'
+uci -q set dhcp.lan.limit='150'
+uci -q commit network
+uci -q commit dhcp
+
+exit 0

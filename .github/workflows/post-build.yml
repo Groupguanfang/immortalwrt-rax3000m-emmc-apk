@@ -16,6 +16,11 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Install verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+
       - name: Download firmware artifact
         if: ${{ github.event.workflow_run.conclusion == 'success' }}
         env:
@@ -37,10 +42,9 @@ jobs:
           test -n "$image"
           test -f "${image}.sha256"
           test -f "${image}.metadata.json"
-          (
-            cd "$(dirname "$image")"
-            sha256sum -c "$(basename "${image}.sha256")"
-          )
+          expected_sha="$(cut -d' ' -f1 "${image}.sha256")"
+          actual_sha="$(sha256sum "$image" | cut -d' ' -f1)"
+          test "$actual_sha" = "$expected_sha"
           jq -e \
             '.supported_devices | index("cmcc,rax3000m-emmc") != null' \
             "${image}.metadata.json"
@@ -48,10 +52,43 @@ jobs:
             'sysupgrade-cmcc_rax3000m-emmc/kernel'
           tar -tf "$image" | grep -q \
             'sysupgrade-cmcc_rax3000m-emmc/root'
-          sha256="$(sha256sum "$image" | cut -d' ' -f1)"
+          workdir="$(mktemp -d)"
+          tar -xf "$image" -C "$workdir"
+          root_image="$(find "$workdir" -path '*/root' -print -quit)"
+          unsquashfs -d "$workdir/rootfs" "$root_image" >/dev/null
+          test -x "$workdir/rootfs/usr/bin/apk"
+          test -x \
+            "$workdir/rootfs/etc/uci-defaults/99-rax3000m-emmc-network"
+          grep -q "network.lan.ipaddr='10.0.0.1'" \
+            "$workdir/rootfs/etc/uci-defaults/99-rax3000m-emmc-network"
+          PLATFORM_SH="$workdir/rootfs/lib/upgrade/platform.sh" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          text = Path(os.environ["PLATFORM_SH"]).read_text()
+          upgrade = text.split("platform_do_upgrade()", 1)[1]
+          upgrade = upgrade.split("platform_check_image()", 1)[0]
+          marker = "cmcc,rax3000m-emmc|\\"
+          pos = upgrade.index(marker)
+          branch = upgrade[pos:pos + 800]
+          required = (
+              'CI_KERNPART="kernel"',
+              'CI_ROOTPART="rootfs"',
+              'CI_METHOD="emmc"',
+              'emmc_do_upgrade "$1"',
+          )
+          if not all(item in branch for item in required):
+              raise SystemExit("legacy eMMC upgrade branch is incomplete")
+
+          check = text.split("platform_check_image()", 1)[1]
+          pos = check.index(marker)
+          branch = check[pos:pos + 500]
+          if 'magic="$(dd if="$1" bs=1 skip=257 count=5' not in branch:
+              raise SystemExit("sysupgrade tar validation branch is missing")
+          PY
           {
             echo "IMAGE_NAME=$(basename "$image")"
-            echo "IMAGE_SHA256=$sha256"
+            echo "IMAGE_SHA256=$actual_sha"
           } >> "$GITHUB_ENV"
 
       - name: Write verification report

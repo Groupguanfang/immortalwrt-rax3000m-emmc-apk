@@ -1,5 +1,8 @@
---- a/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts	1970-01-01 08:00:00
-+++ b/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts	2026-11-02 22:34:03
+diff --git a/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts b/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts
+new file mode 100644
+index 0000000..9cb1a9e
+--- /dev/null
++++ b/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts
 @@ -0,0 +1,85 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 +
@@ -86,13 +89,76 @@
 +		};
 +	};
 +};
---- a/target/linux/mediatek/image/filogic.mk	2026-09-06 22:02:02
-+++ b/target/linux/mediatek/image/filogic.mk	2026-11-02 22:34:03
-@@ -973,6 +973,20 @@
-   ARTIFACT/nand-bl31-uboot.fip := mt7981-bl31-uboot cmcc_rax3000m-nand
+diff --git a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+index 01aa9a0..6c017dd 100644
+--- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
++++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+@@ -11,6 +11,7 @@ mediatek_setup_interfaces()
+ 	abt,asr3000|\
+ 	buffalo,wsr-6000ax8|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	h3c,magic-nx30-pro|\
+ 	imou,hx21|\
+diff --git a/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata b/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata
+index 90125db..83d61a4 100644
+--- a/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata
++++ b/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata
+@@ -9,6 +9,9 @@ board=$(board_name)
+ case "$FIRMWARE" in
+ "mediatek/mt7981_eeprom_mt7976_dbdc.bin")
+ 	case "$board" in
++	cmcc,rax3000m-emmc)
++		caldata_extract_mmc "factory" 0x0 0x1000
++		;;
+ 	mercusys,mr80x-v3|\
+ 	mercusys,mr85x)
+ 		ln -sf /tmp/tp_data/MT7981_EEPROM.bin \
+diff --git a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+index 80597ca..fd93118 100644
+--- a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
++++ b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+@@ -177,6 +177,7 @@ platform_do_upgrade() {
+ 	hiveton,h5000m|\
+ 	huasifei,wh3000-emmc|\
+ 	huasifei,wh3000-pro-emmc|\
++	cmcc,rax3000m-emmc|\
+ 	smartrg,sdg-8612|\
+ 	smartrg,sdg-8614|\
+ 	smartrg,sdg-8622|\
+@@ -186,6 +187,7 @@ platform_do_upgrade() {
+ 	smartrg,sdg-8734)
+ 		CI_KERNPART="kernel"
+ 		CI_ROOTPART="rootfs"
++		CI_METHOD="emmc"
+ 		emmc_do_upgrade "$1"
+ 		;;
+ 	asus,rt-ax52|\
+@@ -382,6 +384,7 @@ platform_check_image() {
+ 		;;
+ 	creatlentem,clt-r30b1|\
+ 	creatlentem,clt-r30b1-112m|\
++	cmcc,rax3000m-emmc|\
+ 	hiveton,h5000m|\
+ 	nradio,c8-668gl)
+ 		# tar magic `ustar`
+@@ -438,6 +441,7 @@ platform_copy_config() {
+ 	bananapi,bpi-r4-poe|\
+ 	bananapi,bpi-r4-lite|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	gatonetworks,gdsp|\
+ 	mediatek,mt7988a-rfb)
+diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
+index 6e93416..1c3eae2 100644
+--- a/target/linux/mediatek/image/filogic.mk
++++ b/target/linux/mediatek/image/filogic.mk
+@@ -974,6 +974,20 @@ define Device/cmcc_rax3000m
  endef
  TARGET_DEVICES += cmcc_rax3000m
-+
+ 
 +define Device/cmcc_rax3000m-emmc
 +  DEVICE_VENDOR := CMCC
 +  DEVICE_MODEL := RAX3000M eMMC
@@ -106,54 +172,7 @@
 +  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 +endef
 +TARGET_DEVICES += cmcc_rax3000m-emmc
- 
++
  define Device/cmcc_rax3000me
    DEVICE_VENDOR := CMCC
---- a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh	2026-09-06 22:02:02
-+++ b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh	2026-11-02 22:34:03
-@@ -112,6 +112,7 @@
- 	cetron,ct3003-ubootmod|\
- 	cmcc,a10-ubootmod|\
- 	cmcc,rax3000m|\
-+	cmcc,rax3000m-emmc|\
- 	cmcc,rax3000me|\
- 	comfast,cf-wr632ax-ubootmod|\
- 	creatlentem,clt-r30b1-ubi|\
-@@ -332,6 +333,7 @@
- 	cetron,ct3003-ubootmod|\
- 	cmcc,a10-ubootmod|\
- 	cmcc,rax3000m|\
-+	cmcc,rax3000m-emmc|\
- 	cmcc,rax3000me|\
- 	comfast,cf-wr632ax-ubootmod|\
- 	creatlentem,clt-r30b1-ubi|\
-@@ -438,6 +440,7 @@
- 	bananapi,bpi-r4-poe|\
- 	bananapi,bpi-r4-lite|\
- 	cmcc,rax3000m|\
-+	cmcc,rax3000m-emmc|\
- 	cmcc,rax3000me|\
- 	gatonetworks,gdsp|\
- 	mediatek,mt7988a-rfb)
---- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network	2026-09-06 22:02:02
-+++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network	2026-11-02 22:34:03
-@@ -11,6 +11,7 @@
- 	abt,asr3000|\
- 	buffalo,wsr-6000ax8|\
- 	cmcc,rax3000m|\
-+	cmcc,rax3000m-emmc|\
- 	cmcc,rax3000me|\
- 	h3c,magic-nx30-pro|\
- 	imou,hx21|\
---- a/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata	2026-09-06 22:02:02
-+++ b/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata	2026-11-02 22:34:03
-@@ -9,6 +9,9 @@
- case "$FIRMWARE" in
- "mediatek/mt7981_eeprom_mt7976_dbdc.bin")
- 	case "$board" in
-+	cmcc,rax3000m-emmc)
-+		caldata_extract_mmc "factory" 0x0 0x1000
-+		;;
- 	mercusys,mr80x-v3|\
- 	mercusys,mr85x)
- 		ln -sf /tmp/tp_data/MT7981_EEPROM.bin \
+   DEVICE_MODEL := RAX3000Me
