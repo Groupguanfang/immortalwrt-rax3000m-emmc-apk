@@ -1,0 +1,108 @@
+name: Verify and notify
+
+on:
+  workflow_run:
+    workflows:
+      - Build ImmortalWrt RAX3000M eMMC
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  verify-and-notify:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download firmware artifact
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p firmware
+          gh run download "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name immortalwrt-25.12.2-rax3000m-emmc-apk \
+            --dir firmware
+
+      - name: Verify firmware
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        run: |
+          image="$(find firmware -type f \
+            -name '*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin' \
+            -print -quit)"
+          test -n "$image"
+          test -f "${image}.sha256"
+          test -f "${image}.metadata.json"
+          (
+            cd "$(dirname "$image")"
+            sha256sum -c "$(basename "${image}.sha256")"
+          )
+          jq -e \
+            '.supported_devices | index("cmcc,rax3000m-emmc") != null' \
+            "${image}.metadata.json"
+          tar -tf "$image" | grep -q \
+            'sysupgrade-cmcc_rax3000m-emmc/kernel'
+          tar -tf "$image" | grep -q \
+            'sysupgrade-cmcc_rax3000m-emmc/root'
+          sha256="$(sha256sum "$image" | cut -d' ' -f1)"
+          {
+            echo "IMAGE_NAME=$(basename "$image")"
+            echo "IMAGE_SHA256=$sha256"
+          } >> "$GITHUB_ENV"
+
+      - name: Write verification report
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        run: |
+          {
+            echo "# Firmware verification passed"
+            echo
+            echo "- Image: \`$IMAGE_NAME\`"
+            echo "- SHA-256: \`$IMAGE_SHA256\`"
+            echo "- Device: \`cmcc,rax3000m-emmc\`"
+            echo "- Archive contains separate \`kernel\` and \`root\` entries."
+            echo "- Source run: ${{ github.event.workflow_run.html_url }}"
+            echo
+            echo "Do not flash automatically. Review the result and recovery plan first."
+          } | tee verification-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verification report
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report-${{ github.event.workflow_run.id }}
+          path: verification-report.md
+          retention-days: 14
+
+      - name: Notify successful build
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --assignee Groupguanfang \
+            --title "Firmware ready and verified (run $RUN_ID)" \
+            --body-file verification-report.md
+
+      - name: Notify failed build
+        if: ${{ github.event.workflow_run.conclusion != 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          body="$(printf '%s\n\n%s\n' \
+            "The firmware build ended with: \`$CONCLUSION\`." \
+            "Inspect the run before retrying: $RUN_URL")"
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --assignee Groupguanfang \
+            --title "Firmware build needs attention (run $RUN_ID)" \
+            --body "$body"
