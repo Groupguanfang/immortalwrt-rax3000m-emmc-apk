@@ -1,4 +1,4 @@
-name: Verify and notify
+name: Post-build verification
 
 on:
   workflow_run:
@@ -10,7 +10,6 @@ on:
 permissions:
   actions: read
   contents: read
-  issues: write
 
 jobs:
   verify-and-notify:
@@ -77,32 +76,3 @@ jobs:
           name: verification-report-${{ github.event.workflow_run.id }}
           path: verification-report.md
           retention-days: 14
-
-      - name: Notify successful build
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-        run: |
-          gh issue create \
-            --repo "$GITHUB_REPOSITORY" \
-            --assignee Groupguanfang \
-            --title "Firmware ready and verified (run $RUN_ID)" \
-            --body-file verification-report.md
-
-      - name: Notify failed build
-        if: ${{ github.event.workflow_run.conclusion != 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
-          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-        run: |
-          body="$(printf '%s\n\n%s\n' \
-            "The firmware build ended with: \`$CONCLUSION\`." \
-            "Inspect the run before retrying: $RUN_URL")"
-          gh issue create \
-            --repo "$GITHUB_REPOSITORY" \
-            --assignee Groupguanfang \
-            --title "Firmware build needs attention (run $RUN_ID)" \
-            --body "$body"
