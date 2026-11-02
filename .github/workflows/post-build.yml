@@ -55,7 +55,7 @@ jobs:
           workdir="$(mktemp -d)"
           tar -xf "$image" -C "$workdir"
           root_image="$(find "$workdir" -path '*/root' -print -quit)"
-          unsquashfs -d "$workdir/rootfs" "$root_image" >/dev/null
+          sudo unsquashfs -d "$workdir/rootfs" "$root_image" >/dev/null
           test -x "$workdir/rootfs/usr/bin/apk"
           test -x \
             "$workdir/rootfs/etc/uci-defaults/99-rax3000m-emmc-network"
