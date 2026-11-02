@@ -1,0 +1,90 @@
+name: Build ImmortalWrt RAX3000M eMMC
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build.yml"
+      - "configs/**"
+      - "patches/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout build recipe
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk gcc-multilib \
+            g++-multilib gettext git libncurses-dev libssl-dev \
+            python3-setuptools python3-pyelftools rsync swig unzip \
+            zlib1g-dev file wget curl llvm libelf-dev \
+            device-tree-compiler libgmp3-dev libmpc-dev jq zstd
+
+      - name: Fetch ImmortalWrt 25.12.2
+        run: |
+          git clone --depth 1 --branch v25.12.2 \
+            https://github.com/immortalwrt/immortalwrt.git immortalwrt
+
+      - name: Add legacy eMMC layout support
+        working-directory: immortalwrt
+        run: |
+          patch -p1 < ../patches/0001-rax3000m-emmc-legacy-layout.patch
+          cp ../configs/rax3000m-emmc.config .config
+
+      - name: Install feeds
+        working-directory: immortalwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make defconfig
+          grep -E \
+            'CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc=y|CONFIG_PACKAGE_apk.*=y' \
+            .config
+
+      - name: Download sources
+        working-directory: immortalwrt
+        run: make download -j"$(nproc)"
+
+      - name: Build firmware
+        working-directory: immortalwrt
+        run: |
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Verify image
+        working-directory: immortalwrt
+        run: |
+          image="$(find bin/targets/mediatek/filogic -maxdepth 1 \
+            -name '*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin' -print -quit)"
+          test -n "$image"
+          test -x staging_dir/host/bin/fwtool
+          staging_dir/host/bin/fwtool -i /tmp/metadata.json "$image"
+          jq -e \
+            '.supported_devices | index("cmcc,rax3000m-emmc") != null' \
+            /tmp/metadata.json
+          tar -tf "$image" | grep -E \
+            'sysupgrade-cmcc_rax3000m-emmc/(CONTROL|kernel|root)$'
+          sha256sum "$image" | tee "${image}.sha256"
+          cp /tmp/metadata.json "${image}.metadata.json"
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-25.12.2-rax3000m-emmc-apk
+          path: |
+            immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin
+            immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.sha256
+            immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.metadata.json
+          if-no-files-found: error
+          retention-days: 14

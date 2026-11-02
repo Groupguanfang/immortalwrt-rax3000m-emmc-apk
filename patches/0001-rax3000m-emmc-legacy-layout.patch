@@ -1,0 +1,159 @@
+--- a/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts	1970-01-01 08:00:00
++++ b/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts	2026-11-02 22:34:03
+@@ -0,0 +1,85 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++
++/dts-v1/;
++#include "mt7981b-cmcc-rax3000m.dts"
++
++/ {
++	model = "CMCC RAX3000M (eMMC version)";
++	compatible = "cmcc,rax3000m-emmc", "mediatek,mt7981";
++
++	chosen {
++		bootargs = "root=PARTLABEL=rootfs rootwait";
++	};
++};
++
++&gmac0 {
++	nvmem-cells = <&macaddr_factory_2a>;
++	nvmem-cell-names = "mac-address";
++};
++
++&gmac1 {
++	nvmem-cells = <&macaddr_factory_24>;
++	nvmem-cell-names = "mac-address";
++};
++
++&mmc0 {
++	bus-width = <8>;
++	max-frequency = <26000000>;
++	non-removable;
++	pinctrl-names = "default", "state_uhs";
++	pinctrl-0 = <&mmc0_pins_default>;
++	pinctrl-1 = <&mmc0_pins_uhs>;
++	vmmc-supply = <&reg_3p3v>;
++	#address-cells = <1>;
++	#size-cells = <0>;
++	status = "okay";
++
++	card@0 {
++		compatible = "mmc-card";
++		reg = <0>;
++
++		block {
++			compatible = "block-device";
++
++			partitions {
++				block-partition-factory {
++					partname = "factory";
++
++					nvmem-layout {
++						compatible = "fixed-layout";
++						#address-cells = <1>;
++						#size-cells = <1>;
++
++						eeprom_factory_0: eeprom@0 {
++							reg = <0x0 0x1000>;
++						};
++
++						macaddr_factory_24: macaddr@24 {
++							reg = <0x24 0x6>;
++						};
++
++						macaddr_factory_2a: macaddr@2a {
++							reg = <0x2a 0x6>;
++						};
++					};
++				};
++			};
++		};
++	};
++};
++
++&pio {
++	mmc0_pins_default: mmc0-pins {
++		mux {
++			function = "flash";
++			groups = "emmc_45";
++		};
++	};
++
++	mmc0_pins_uhs: mmc0-uhs-pins {
++		mux {
++			function = "flash";
++			groups = "emmc_45";
++		};
++	};
++};
+--- a/target/linux/mediatek/image/filogic.mk	2026-09-06 22:02:02
++++ b/target/linux/mediatek/image/filogic.mk	2026-11-02 22:34:03
+@@ -973,6 +973,20 @@
+   ARTIFACT/nand-bl31-uboot.fip := mt7981-bl31-uboot cmcc_rax3000m-nand
+ endef
+ TARGET_DEVICES += cmcc_rax3000m
++
++define Device/cmcc_rax3000m-emmc
++  DEVICE_VENDOR := CMCC
++  DEVICE_MODEL := RAX3000M eMMC
++  DEVICE_DTS := mt7981b-cmcc-rax3000m-emmc
++  DEVICE_DTS_DIR := ../dts
++  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware kmod-usb3 \
++	e2fsprogs f2fsck mkf2fs losetup kmod-fs-f2fs kmod-mmc
++  KERNEL := kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
++  KERNEL_INITRAMFS := kernel-bin | lzma | \
++	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
++  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
++endef
++TARGET_DEVICES += cmcc_rax3000m-emmc
+ 
+ define Device/cmcc_rax3000me
+   DEVICE_VENDOR := CMCC
+--- a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh	2026-09-06 22:02:02
++++ b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh	2026-11-02 22:34:03
+@@ -112,6 +112,7 @@
+ 	cetron,ct3003-ubootmod|\
+ 	cmcc,a10-ubootmod|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	comfast,cf-wr632ax-ubootmod|\
+ 	creatlentem,clt-r30b1-ubi|\
+@@ -332,6 +333,7 @@
+ 	cetron,ct3003-ubootmod|\
+ 	cmcc,a10-ubootmod|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	comfast,cf-wr632ax-ubootmod|\
+ 	creatlentem,clt-r30b1-ubi|\
+@@ -438,6 +440,7 @@
+ 	bananapi,bpi-r4-poe|\
+ 	bananapi,bpi-r4-lite|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	gatonetworks,gdsp|\
+ 	mediatek,mt7988a-rfb)
+--- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network	2026-09-06 22:02:02
++++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network	2026-11-02 22:34:03
+@@ -11,6 +11,7 @@
+ 	abt,asr3000|\
+ 	buffalo,wsr-6000ax8|\
+ 	cmcc,rax3000m|\
++	cmcc,rax3000m-emmc|\
+ 	cmcc,rax3000me|\
+ 	h3c,magic-nx30-pro|\
+ 	imou,hx21|\
+--- a/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata	2026-09-06 22:02:02
++++ b/target/linux/mediatek/filogic/base-files/etc/hotplug.d/firmware/11-mt76-caldata	2026-11-02 22:34:03
+@@ -9,6 +9,9 @@
+ case "$FIRMWARE" in
+ "mediatek/mt7981_eeprom_mt7976_dbdc.bin")
+ 	case "$board" in
++	cmcc,rax3000m-emmc)
++		caldata_extract_mmc "factory" 0x0 0x1000
++		;;
+ 	mercusys,mr80x-v3|\
+ 	mercusys,mr85x)
+ 		ln -sf /tmp/tp_data/MT7981_EEPROM.bin \
