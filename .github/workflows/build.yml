@@ -67,6 +67,24 @@ jobs:
             target/linux/mediatek/filogic/base-files/etc/uci-defaults/99-rax3000m-emmc-network
           cp ../configs/rax3000m-emmc.config .config
 
+      - name: Restore source downloads
+        id: cache-downloads
+        uses: actions/cache@v4
+        with:
+          path: immortalwrt/dl
+          key: downloads-${{ runner.os }}-25.12.2-${{ github.sha }}
+          restore-keys: |
+            downloads-${{ runner.os }}-
+
+      - name: Restore compiler cache
+        id: cache-ccache
+        uses: actions/cache@v4
+        with:
+          path: immortalwrt/.ccache
+          key: openwrt-ccache-${{ runner.os }}-25.12.2-mediatek-filogic-${{ hashFiles('configs/**', 'patches/**', 'files/**') }}-${{ github.sha }}
+          restore-keys: |
+            openwrt-ccache-${{ runner.os }}-25.12.2-mediatek-filogic-
+
       - name: Install feeds
         working-directory: immortalwrt
         run: |
@@ -84,11 +102,25 @@ jobs:
         working-directory: immortalwrt
         run: make download -j"$(nproc)"
 
+      - name: Save source downloads
+        if: ${{ steps.cache-downloads.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: immortalwrt/dl
+          key: ${{ steps.cache-downloads.outputs.cache-primary-key }}
+
       - name: Build firmware
         working-directory: immortalwrt
         run: |
           set -o pipefail
           make -j"$(nproc)" V=s 2>&1 | tee build.log
+
+      - name: Save compiler cache
+        if: ${{ always() && steps.cache-ccache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: immortalwrt/.ccache
+          key: ${{ steps.cache-ccache.outputs.cache-primary-key }}
 
       - name: Upload build log on failure
         if: ${{ failure() }}
