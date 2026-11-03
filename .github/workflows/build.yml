@@ -40,8 +40,10 @@ jobs:
 
       - name: Add UA3F and OpenClash packages
         run: |
-          git clone https://github.com/SunBK201/UA3F.git ua3f
-          git -C ua3f checkout e464514ab313e3afe308881d7e5732a5baf41ce2
+          git clone --depth 1 --branch v3.7.0 \
+            https://github.com/SunBK201/UA3F.git ua3f
+          test "$(git -C ua3f rev-parse HEAD)" = \
+            e464514ab313e3afe308881d7e5732a5baf41ce2
           mkdir -p immortalwrt/package/ua3f
           cp -a ua3f/. immortalwrt/package/ua3f/
           cp -a ua3f/openwrt/. immortalwrt/package/ua3f/
@@ -49,8 +51,10 @@ jobs:
             's#$(CP) ../go.mod ../go.sum ../main.go ../cmd ../internal#$(CP) ./go.mod ./go.sum ./main.go ./cmd ./internal#' \
             immortalwrt/package/ua3f/Makefile
 
-          git clone https://github.com/vernesong/OpenClash.git openclash
-          git -C openclash checkout e553e82e01c697aefbe1555261a503f425e00ccd
+          git clone --depth 1 --branch v0.48.002 \
+            https://github.com/vernesong/OpenClash.git openclash
+          test "$(git -C openclash rev-parse HEAD)" = \
+            e553e82e01c697aefbe1555261a503f425e00ccd
           cp -a openclash/luci-app-openclash \
             immortalwrt/package/luci-app-openclash
 
