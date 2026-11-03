@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..9cb1a9e
 --- /dev/null
 +++ b/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc.dts
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,86 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 +
 +/dts-v1/;
@@ -14,6 +14,7 @@ index 0000000..9cb1a9e
 +	compatible = "cmcc,rax3000m-emmc", "mediatek,mt7981";
 +
 +	chosen {
++		/delete-property/ bootargs-override;
 +		bootargs = "root=PARTLABEL=rootfs rootwait";
 +	};
 +};

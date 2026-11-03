@@ -68,6 +68,13 @@ jobs:
       - name: Verify image
         working-directory: immortalwrt
         run: |
+          dtb="$(find build_dir/target-*/linux-mediatek_filogic \
+            -name 'image-mt7981b-cmcc-rax3000m-emmc.dtb' -print -quit)"
+          test -n "$dtb"
+          dtc -q -I dtb -O dts "$dtb" > /tmp/rax3000m-emmc.dts
+          ! grep -q 'bootargs-override' /tmp/rax3000m-emmc.dts
+          grep -q 'bootargs = "root=PARTLABEL=rootfs rootwait"' \
+            /tmp/rax3000m-emmc.dts
           image="$(find bin/targets/mediatek/filogic -maxdepth 1 \
             -name '*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin' -print -quit)"
           test -n "$image"
