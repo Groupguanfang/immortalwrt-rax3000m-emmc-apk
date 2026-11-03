@@ -12,14 +12,16 @@ The build keeps the existing GPT and U-Boot recovery page. It produces a
 traditional `sysupgrade.bin` containing separate kernel and rootfs payloads.
 The package manager is APK, as provided by ImmortalWrt 25.12.2.
 
-The image also builds and installs:
+The image prepares and verifies:
 
-- UA3F 3.7.0 with its matching iptables/ipset/NFQUEUE kernel modules
-- OpenClash with the Firewall4/nftables dependency set
+- The matching iptables/ipset/NFQUEUE/TPROXY kernel modules for UA3F
+- OpenClash's Firewall4/nftables runtime dependencies
 - BTF/eBPF, cgroup, TC, NFQUEUE, TUN and inet-diag support required by honk
 
-UA3F and OpenClash APK files are included in the workflow artifact. Honk
-does not currently ship an OpenWrt package definition in its upstream
+UA3F and OpenClash are not preinstalled. Their APK files are included in the
+workflow artifact and can be installed after flashing with `apk add`. This
+keeps the firmware build from compiling large Go and Ruby dependency trees.
+Honk does not currently ship an OpenWrt package definition in its upstream
 repository, so this image prepares and verifies its kernel prerequisites
 without packaging an unverified service wrapper.
 

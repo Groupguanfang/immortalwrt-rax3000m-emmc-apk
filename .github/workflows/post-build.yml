@@ -57,11 +57,11 @@ jobs:
           root_image="$(find "$workdir" -path '*/root' -print -quit)"
           sudo unsquashfs -d "$workdir/rootfs" "$root_image" >/dev/null
           test -x "$workdir/rootfs/usr/bin/apk"
-          test -x "$workdir/rootfs/usr/bin/ua3f"
-          test -x "$workdir/rootfs/etc/init.d/openclash"
           build_config="$(find firmware -name build.config -print -quit)"
           test -n "$build_config"
           grep -q '^CONFIG_KERNEL_DEBUG_INFO_BTF=y$' "$build_config"
+          grep -q '^CONFIG_PACKAGE_luci-app-openclash=m$' "$build_config"
+          test -n "$(find firmware -name 'luci-app-openclash-*.apk' -print -quit)"
           test -x \
             "$workdir/rootfs/etc/uci-defaults/99-rax3000m-emmc-network"
           grep -q "network.lan.ipaddr='10.0.0.1'" \

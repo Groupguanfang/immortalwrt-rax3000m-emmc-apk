@@ -38,20 +38,8 @@ jobs:
           git clone --depth 1 --branch v25.12.2 \
             https://github.com/immortalwrt/immortalwrt.git immortalwrt
 
-      - name: Add UA3F and OpenClash packages
+      - name: Add OpenClash package
         run: |
-          git clone --depth 1 --branch v3.7.0 \
-            https://github.com/SunBK201/UA3F.git ua3f
-          test "$(git -C ua3f rev-parse HEAD)" = \
-            e464514ab313e3afe308881d7e5732a5baf41ce2
-          mkdir -p immortalwrt/package/ua3f
-          cp -a ua3f/. immortalwrt/package/ua3f/
-          cp -a ua3f/openwrt/. immortalwrt/package/ua3f/
-          rm -rf immortalwrt/package/ua3f/openwrt
-          sed -i \
-            's#$(CP) ../go.mod ../go.sum ../main.go ../cmd ../internal#$(CP) ./go.mod ./go.sum ./main.go ./cmd ./internal#' \
-            immortalwrt/package/ua3f/Makefile
-
           git clone --depth 1 --branch v0.48.002 \
             https://github.com/vernesong/OpenClash.git openclash
           test "$(git -C openclash rev-parse HEAD)" = \
@@ -92,11 +80,16 @@ jobs:
           ./scripts/feeds install -a
           make defconfig
           grep -E \
-            'CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc=y|CONFIG_PACKAGE_(apk.*|ua3f|luci-app-openclash)=y|CONFIG_KERNEL_DEBUG_INFO_BTF=y' \
+            'CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc=y|CONFIG_PACKAGE_(apk.*|luci-app-openclash)=[my]|CONFIG_KERNEL_DEBUG_INFO_BTF=y' \
             .config
-          test "$(grep -c '^CONFIG_PACKAGE_ua3f=y$' .config)" -eq 1
-          test "$(grep -c '^CONFIG_PACKAGE_luci-app-openclash=y$' .config)" -eq 1
+          test "$(grep -c '^CONFIG_PACKAGE_luci-app-openclash=m$' .config)" -eq 1
           test "$(grep -c '^CONFIG_KERNEL_DEBUG_INFO_BTF=y$' .config)" -eq 1
+
+      - name: Download prebuilt UA3F APK
+        run: |
+          curl -fL \
+            -o ua3f-3.7.0-r1-aarch64_cortex-a53.apk \
+            https://github.com/SunBK201/UA3F/releases/download/v3.7.0/ua3f-3.7.0-r1-aarch64_cortex-a53.apk
 
       - name: Download sources
         working-directory: immortalwrt
@@ -151,7 +144,6 @@ jobs:
             /tmp/metadata.json
           tar -tf "$image" | grep -E \
             'sysupgrade-cmcc_rax3000m-emmc/(CONTROL|kernel|root)$'
-          test -n "$(find bin/packages -name 'ua3f-*.apk' -print -quit)"
           test -n "$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
           sha256sum "$image" | tee "${image}.sha256"
           cp /tmp/metadata.json "${image}.metadata.json"
@@ -166,7 +158,7 @@ jobs:
             immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.sha256
             immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.metadata.json
             immortalwrt/bin/targets/mediatek/filogic/build.config
-            immortalwrt/bin/packages/**/ua3f-*.apk
             immortalwrt/bin/packages/**/luci-app-openclash-*.apk
+            ua3f-3.7.0-r1-aarch64_cortex-a53.apk
           if-no-files-found: error
           retention-days: 14
