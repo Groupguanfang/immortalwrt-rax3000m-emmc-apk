@@ -38,6 +38,22 @@ jobs:
           git clone --depth 1 --branch v25.12.2 \
             https://github.com/immortalwrt/immortalwrt.git immortalwrt
 
+      - name: Add UA3F and OpenClash packages
+        run: |
+          git clone https://github.com/SunBK201/UA3F.git ua3f
+          git -C ua3f checkout e464514ab313e3afe308881d7e5732a5baf41ce2
+          mkdir -p immortalwrt/package/ua3f
+          cp -a ua3f/. immortalwrt/package/ua3f/
+          cp -a ua3f/openwrt/. immortalwrt/package/ua3f/
+          sed -i \
+            's#$(CP) ../go.mod ../go.sum ../main.go ../cmd ../internal#$(CP) ./go.mod ./go.sum ./main.go ./cmd ./internal#' \
+            immortalwrt/package/ua3f/Makefile
+
+          git clone https://github.com/vernesong/OpenClash.git openclash
+          git -C openclash checkout e553e82e01c697aefbe1555261a503f425e00ccd
+          cp -a openclash/luci-app-openclash \
+            immortalwrt/package/luci-app-openclash
+
       - name: Add legacy eMMC layout support
         working-directory: immortalwrt
         run: |
@@ -53,8 +69,11 @@ jobs:
           ./scripts/feeds install -a
           make defconfig
           grep -E \
-            'CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc=y|CONFIG_PACKAGE_apk.*=y' \
+            'CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m-emmc=y|CONFIG_PACKAGE_(apk.*|ua3f|luci-app-openclash)=y|CONFIG_KERNEL_DEBUG_INFO_BTF=y' \
             .config
+          test "$(grep -c '^CONFIG_PACKAGE_ua3f=y$' .config)" -eq 1
+          test "$(grep -c '^CONFIG_PACKAGE_luci-app-openclash=y$' .config)" -eq 1
+          test "$(grep -c '^CONFIG_KERNEL_DEBUG_INFO_BTF=y$' .config)" -eq 1
 
       - name: Download sources
         working-directory: immortalwrt
@@ -85,8 +104,11 @@ jobs:
             /tmp/metadata.json
           tar -tf "$image" | grep -E \
             'sysupgrade-cmcc_rax3000m-emmc/(CONTROL|kernel|root)$'
+          test -n "$(find bin/packages -name 'ua3f-*.apk' -print -quit)"
+          test -n "$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
           sha256sum "$image" | tee "${image}.sha256"
           cp /tmp/metadata.json "${image}.metadata.json"
+          cp .config bin/targets/mediatek/filogic/build.config
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
@@ -96,5 +118,8 @@ jobs:
             immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin
             immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.sha256
             immortalwrt/bin/targets/mediatek/filogic/*cmcc_rax3000m-emmc*squashfs-sysupgrade.bin.metadata.json
+            immortalwrt/bin/targets/mediatek/filogic/build.config
+            immortalwrt/bin/packages/**/ua3f-*.apk
+            immortalwrt/bin/packages/**/luci-app-openclash-*.apk
           if-no-files-found: error
           retention-days: 14
